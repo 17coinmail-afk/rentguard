@@ -129,7 +129,7 @@ async def get_or_create_user(session, tg_user: dict):
 # ------------------ Handlers ------------------
 
 async def health(request):
-    return web.Response(text="OK")
+    return web.Response(text="RentGuard Mini App OK v2")
 
 async def api_me(request):
     tg_user = await get_current_user(request)
