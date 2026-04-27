@@ -103,6 +103,30 @@ async def get_or_create_user(session, tg_user: dict):
 async def health(request):
     return web.Response(text="RentGuard Mini App OK v2")
 
+async def status(request):
+    info = {"bot_loaded": _bot_loaded}
+    try:
+        import aiogram
+        info["aiogram_version"] = aiogram.__version__
+    except Exception as e:
+        info["aiogram_error"] = str(e)
+    try:
+        import sqlalchemy
+        info["sqlalchemy_version"] = sqlalchemy.__version__
+    except Exception as e:
+        info["sqlalchemy_error"] = str(e)
+    try:
+        from bot.config import BOT_TOKEN
+        info["bot_token_set"] = bool(BOT_TOKEN)
+    except Exception as e:
+        info["config_error"] = str(e)
+    try:
+        from bot.handlers import start
+        info["handlers_ok"] = True
+    except Exception as e:
+        info["handlers_error"] = str(e)
+    return web.json_response(info)
+
 async def api_me(request):
     tg_user = await get_current_user(request)
     async with await get_session() as session:
@@ -185,6 +209,7 @@ async def main():
     static_path = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static("/static/", static_path)
     app.router.add_get("/", health)
+    app.router.add_get("/status", status)
     app.router.add_get("/app", lambda r: web.HTTPFound("/static/index.html"))
 
     app.router.add_get("/api/me", api_me)
