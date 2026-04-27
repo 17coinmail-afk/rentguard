@@ -1,6 +1,5 @@
-aiogram
-aiohttp
-SQLAlchemy
-aiosqlite
-python-dotenv
-Jinja2
+aiogram>=3.0,<4.0
+aiohttp>=3.8
+SQLAlchemy>=2.0
+aiosqlite>=0.19
+python-dotenv>=1.0

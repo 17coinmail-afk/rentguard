@@ -117,7 +117,7 @@ async def get_or_create_user(session, tg_user: dict):
         user = User(
             tg_id=tg_id,
             username=tg_user.get("username", ""),
-            full_name=tg_user.get("first_name", "") + (" " + tg_user.get("last_name", "")).rstrip(),
+            full_name=(tg_user.get("first_name", "") + " " + tg_user.get("last_name", "")).strip(),
             subscription_end=datetime.utcnow() + timedelta(days=TRIAL_DAYS)
         )
         session.add(user)
