@@ -14,9 +14,10 @@ logging.basicConfig(level=logging.INFO)
 # Lazy bot state
 _bot_loaded = False
 _bot = None
+_bot_error = None
 
 async def _init_bot(app):
-    global _bot_loaded, _bot
+    global _bot_loaded, _bot, _bot_error
     try:
         from bot.config import BOT_TOKEN, WEBHOOK_URL
         from bot.database import init_db
@@ -47,6 +48,7 @@ async def _init_bot(app):
             await bot.set_webhook(WEBHOOK_URL)
             logging.info(f"Webhook set to {WEBHOOK_URL}")
     except Exception as e:
+        _bot_error = str(e)
         logging.error(f"Bot init error (non-critical): {e}")
         import traceback
         traceback.print_exc()
@@ -104,7 +106,7 @@ async def health(request):
     return web.Response(text="RentGuard Mini App OK v2")
 
 async def status(request):
-    info = {"bot_loaded": _bot_loaded}
+    info = {"bot_loaded": _bot_loaded, "bot_error": _bot_error}
     try:
         import aiogram
         info["aiogram_version"] = aiogram.__version__
