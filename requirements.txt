@@ -1,6 +1,1 @@
-aiogram
 aiohttp
-SQLAlchemy
-aiosqlite
-python-dotenv
-Jinja2
