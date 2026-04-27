@@ -11,48 +11,6 @@ from sqlalchemy import select, func
 
 logging.basicConfig(level=logging.INFO)
 
-# Lazy bot state
-_bot_loaded = False
-_bot = None
-_bot_error = None
-
-async def _init_bot(app):
-    global _bot_loaded, _bot, _bot_error
-    try:
-        from bot.config import BOT_TOKEN, WEBHOOK_URL
-        from bot.database import init_db
-        await init_db()
-        logging.info("Database initialized")
-
-        from aiogram import Bot, Dispatcher
-        from bot.handlers import start, landlord, payments, admin
-        bot = Bot(token=BOT_TOKEN)
-        dp = Dispatcher()
-        dp.include_router(start.router)
-        dp.include_router(landlord.router)
-        dp.include_router(payments.router)
-        dp.include_router(admin.router)
-        logging.info("Bot handlers registered")
-
-        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-        webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-        webhook_handler.register(app, path="/webhook")
-        setup_application(app, dp, bot=bot)
-        logging.info("Webhook handler registered")
-
-        _bot = bot
-        _bot_loaded = True
-        logging.info("Bot loaded successfully")
-
-        if WEBHOOK_URL:
-            await bot.set_webhook(WEBHOOK_URL)
-            logging.info(f"Webhook set to {WEBHOOK_URL}")
-    except Exception as e:
-        _bot_error = str(e)
-        logging.error(f"Bot init error (non-critical): {e}")
-        import traceback
-        traceback.print_exc()
-
 # ------------------ Telegram WebApp Auth ------------------
 
 def validate_telegram_init_data(init_data: str) -> dict:
@@ -106,7 +64,7 @@ async def health(request):
     return web.Response(text="RentGuard Mini App OK v2")
 
 async def status(request):
-    info = {"bot_loaded": _bot_loaded, "bot_error": _bot_error}
+    info = {}
     try:
         import aiogram
         info["aiogram_version"] = aiogram.__version__
@@ -117,16 +75,6 @@ async def status(request):
         info["sqlalchemy_version"] = sqlalchemy.__version__
     except Exception as e:
         info["sqlalchemy_error"] = str(e)
-    try:
-        from bot.config import BOT_TOKEN
-        info["bot_token_set"] = bool(BOT_TOKEN)
-    except Exception as e:
-        info["config_error"] = str(e)
-    try:
-        from bot.handlers import start
-        info["handlers_ok"] = True
-    except Exception as e:
-        info["handlers_error"] = str(e)
     return web.json_response(info)
 
 async def api_me(request):
@@ -220,6 +168,32 @@ async def main():
     app.router.add_delete("/api/properties/{id}", api_delete_property)
     app.router.add_get("/api/stats", api_stats)
 
+    # Setup bot handlers BEFORE runner.setup()
+    bot = None
+    try:
+        from bot.config import BOT_TOKEN, WEBHOOK_URL
+        from bot.database import init_db
+        from aiogram import Bot, Dispatcher
+        from bot.handlers import start, landlord, payments, admin
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+
+        bot = Bot(token=BOT_TOKEN)
+        dp = Dispatcher()
+        dp.include_router(start.router)
+        dp.include_router(landlord.router)
+        dp.include_router(payments.router)
+        dp.include_router(admin.router)
+        logging.info("Bot routers registered")
+
+        webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+        webhook_handler.register(app, path="/webhook")
+        setup_application(app, dp, bot=bot)
+        logging.info("Webhook handler registered")
+    except Exception as e:
+        logging.error(f"Bot setup error: {e}")
+        import traceback
+        traceback.print_exc()
+
     port = int(os.getenv("PORT", 8080))
     runner = web.AppRunner(app)
     await runner.setup()
@@ -227,8 +201,21 @@ async def main():
     await site.start()
     logging.info(f"Server started on port {port}")
 
-    # Init bot in background so Render healthcheck passes immediately
-    asyncio.create_task(_init_bot(app))
+    # Async init after server is up
+    if bot:
+        try:
+            from bot.database import init_db
+            await init_db()
+            logging.info("Database initialized")
+            from bot.config import WEBHOOK_URL
+            if WEBHOOK_URL:
+                await bot.set_webhook(WEBHOOK_URL)
+                logging.info(f"Webhook set to {WEBHOOK_URL}")
+            logging.info("Bot fully initialized")
+        except Exception as e:
+            logging.error(f"Bot async init error: {e}")
+            import traceback
+            traceback.print_exc()
 
     await asyncio.Event().wait()
 
