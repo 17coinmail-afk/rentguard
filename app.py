@@ -192,8 +192,8 @@ async def main():
     # Static files
     static_path = os.path.join(os.path.dirname(__file__), "static")
     app.router.add_static("/static/", static_path)
-    app.router.add_get("/", lambda r: web.HTTPFound("/static/index.html"))
-    app.router.add_get("/health", health)
+    app.router.add_get("/", health)
+    app.router.add_get("/app", lambda r: web.HTTPFound("/static/index.html"))
     
     # API routes
     app.router.add_get("/api/me", api_me)
