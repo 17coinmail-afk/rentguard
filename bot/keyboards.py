@@ -1,8 +1,10 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
+WEBAPP_URL = "https://rentguard-v47c.onrender.com/static/index.html"
 
 def main_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Открыть приложение", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text="🏠 Мои объекты", callback_data="my_properties")],
         [InlineKeyboardButton(text="➕ Добавить объект", callback_data="add_property")],
         [InlineKeyboardButton(text="💳 Оплата аренды", callback_data="rent_payments")],
