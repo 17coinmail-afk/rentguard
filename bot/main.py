@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from bot.config import BOT_TOKEN, WEBHOOK_URL
@@ -41,16 +42,26 @@ async def main():
     if WEBHOOK_URL:
         from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
         from aiohttp import web
+        
         app = web.Application()
+        
+        # Healthcheck для Render (обязательно!)
+        async def healthcheck(request):
+            return web.Response(text="OK", status=200)
+        app.router.add_get("/", healthcheck)
+        
         webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
         webhook_requests_handler.register(app, path="/webhook")
         setup_application(app, dp, bot=bot)
         
+        # Render передаёт порт через переменную PORT
+        port = int(os.getenv("PORT", 8080))
+        
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, host="0.0.0.0", port=8080)
+        site = web.TCPSite(runner, host="0.0.0.0", port=port)
         await site.start()
-        logging.info("Webhook server started on port 8080")
+        logging.info(f"Webhook server started on port {port}")
         
         # Keep running
         await asyncio.Event().wait()

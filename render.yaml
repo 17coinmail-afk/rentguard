@@ -3,6 +3,7 @@ services:
     name: rentguard-bot
     runtime: docker
     plan: free
+    port: 10000
     envVars:
       - key: BOT_TOKEN
         sync: false
