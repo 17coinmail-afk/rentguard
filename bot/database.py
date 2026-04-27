@@ -80,6 +80,17 @@ class Payment(Base):
     user = relationship("User", back_populates="payments")
 
 
+class ReminderLog(Base):
+    __tablename__ = "reminder_logs"
+    
+    id = Column(Integer, primary_key=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    reminder_type = Column(String(50), nullable=False)  # before_1day, on_day, overdue
+    sent_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

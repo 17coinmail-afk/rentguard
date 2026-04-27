@@ -153,6 +153,25 @@ async def api_admin_stats(request):
             "total_monthly_rent": total_rent
         })
 
+async def cron_check_reminders(request):
+    """Endpoint for external cron service (e.g. cron-job.org)."""
+    key = request.query.get("key", "")
+    if key != os.getenv("BOT_TOKEN", ""):
+        raise web.HTTPForbidden(text="Forbidden")
+    try:
+        from bot.config import BOT_TOKEN
+        from aiogram import Bot
+        from bot.utils.reminders import check_and_send_reminders
+        bot = Bot(token=BOT_TOKEN)
+        await check_and_send_reminders(bot)
+        await bot.session.close()
+        return web.json_response({"status": "ok", "checked": True})
+    except Exception as e:
+        logging.error(f"Reminder check failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
 # ------------------ Main ------------------
 
 async def main():
@@ -169,6 +188,7 @@ async def main():
     app.router.add_delete("/api/properties/{id}", api_delete_property)
     app.router.add_get("/api/stats", api_stats)
     app.router.add_get("/api/admin/stats", api_admin_stats)
+    app.router.add_get("/cron/check_reminders", cron_check_reminders)
 
     # Setup bot handlers BEFORE runner.setup()
     bot = None
