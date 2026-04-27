@@ -2,7 +2,7 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
-const CLOUD_KEY = 'rg_properties_v1';
+const CLOUD_KEY = 'rg_properties_v2';
 const CLOUD_SUB_KEY = 'rg_subscription_v1';
 
 function cloudSet(key, value) {
@@ -53,17 +53,19 @@ let subData = { trial_start: new Date().toISOString(), active: true };
 function showPage(name) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     document.getElementById('page-' + name).classList.remove('hidden');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    const btn = document.querySelector(`button[onclick="showPage('${name}')"]`);
+    document.querySelectorAll('.bottom-nav-item').forEach(b => b.classList.remove('active'));
+    const btn = document.querySelector(`.bottom-nav-item[data-page="${name}"]`);
     if (btn) btn.classList.add('active');
     if (name === 'dashboard') renderDashboard();
     if (name === 'properties') renderProperties();
+    if (name === 'profile') renderProfile();
 }
 
 function loadUser() {
     const user = tg.initDataUnsafe?.user || {};
     const name = user.first_name ? (user.first_name + ' ' + (user.last_name || '')).trim() : 'Пользователь';
-    document.getElementById('user-name').textContent = name;
+    document.getElementById('user-name').textContent = 'Добро пожаловать, ' + name;
+    document.getElementById('profile-name').textContent = name;
 }
 
 function escapeHtml(text) {
@@ -80,12 +82,20 @@ function getPaymentStatus(prop) {
     const currentDay = today.getDate();
     
     if (prop.last_paid_month === currentMonth) {
-        return { status: 'paid', label: '✅ Оплачено', color: '#2ed573' };
+        return { status: 'paid', label: 'Оплачено', class: 'status-paid' };
     }
     if (currentDay > paymentDay) {
-        return { status: 'overdue', label: '⚠️ Просрочено', color: '#ff4757' };
+        return { status: 'overdue', label: 'Просрочено', class: 'status-overdue' };
     }
-    return { status: 'pending', label: '⏳ Ожидается', color: '#ffa502' };
+    return { status: 'pending', label: 'Ожидается', class: 'status-pending' };
+}
+
+function getDaysUntil(dateStr) {
+    if (!dateStr) return null;
+    const end = new Date(dateStr);
+    const today = new Date();
+    const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+    return diff;
 }
 
 function renderDashboard() {
@@ -99,19 +109,21 @@ function renderDashboard() {
     document.getElementById('dash-paid').textContent = paidCount;
     document.getElementById('dash-overdue').textContent = overdueCount;
 
-    // Trial timer
+    // Trial chip
     const trialStart = new Date(subData.trial_start || new Date());
     const trialDays = 7;
     const trialEnd = new Date(trialStart);
     trialEnd.setDate(trialEnd.getDate() + trialDays);
     const daysLeft = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
-    const subEl = document.getElementById('subscription-banner');
+    const chip = document.getElementById('subscription-chip');
     if (daysLeft > 0) {
-        subEl.innerHTML = `🎁 Пробный период: <b>${daysLeft} дн.</b> осталось`;
-        subEl.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+        chip.textContent = '🎁 ' + daysLeft + ' дн. бесплатно';
+        chip.style.background = 'rgba(255,255,255,0.2)';
     } else {
-        subEl.innerHTML = `💎 Подписка закончилась. <a href="#" onclick="showSubscribe()" style="color:#fff;text-decoration:underline;">Продлить за 500₽/мес</a>`;
-        subEl.style.background = '#ff4757';
+        chip.textContent = '💎 Продлить подписку';
+        chip.style.background = 'rgba(255,71,87,0.3)';
+        chip.style.cursor = 'pointer';
+        chip.onclick = showSubscribe;
     }
 
     const today = new Date();
@@ -149,7 +161,7 @@ function renderDashboard() {
                 </div>
                 <div style="text-align:right">
                     <div class="payment-amount">${Number(p.rent_amount || 0).toLocaleString()} ₽</div>
-                    <div style="font-size:11px;color:${st.color};font-weight:700">${st.label}</div>
+                    <span class="payment-status ${st.class}">${st.label}</span>
                 </div>
             </div>
         `;
@@ -160,27 +172,52 @@ function renderProperties() {
     const list = document.getElementById('properties-list');
     const props = appData.properties || [];
     if (props.length === 0) {
-        list.innerHTML = '<div class="empty-state">Нет объектов. Добавь первый!</div>';
+        list.innerHTML = '<div class="empty-state">Нет объектов.<br>Нажми + чтобы добавить первый!</div>';
         return;
     }
     list.innerHTML = props.map((p, idx) => {
         const st = getPaymentStatus(p);
+        const leaseDays = getDaysUntil(p.lease_end);
+        let leaseText = '';
+        if (leaseDays !== null) {
+            if (leaseDays < 0) leaseText = `🔴 Договор просрочен (${Math.abs(leaseDays)} дн.)`;
+            else if (leaseDays <= 30) leaseText = `🟡 Договор заканчивается через ${leaseDays} дн.`;
+            else leaseText = `🟢 Договор до ${new Date(p.lease_end).toLocaleDateString('ru-RU')}`;
+        }
         return `
         <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
                 <h3>${escapeHtml(p.name)}</h3>
-                <span style="font-size:12px;color:${st.color};font-weight:700;background:${st.color}15;padding:4px 8px;border-radius:6px">${st.label}</span>
+                <span class="status-badge-inline ${st.class}">${st.label}</span>
             </div>
-            <p>${escapeHtml(p.address || 'Адрес не указан')}</p>
+            <p>📍 ${escapeHtml(p.address || 'Адрес не указан')}</p>
             <p class="price">${Number(p.rent_amount || 0).toLocaleString()} ₽/мес</p>
             <p>👤 ${escapeHtml(p.tenant_name || '—')} · 📞 ${escapeHtml(p.tenant_phone || '—')}</p>
             <p>📅 Оплата: ${p.payment_day || 1} числа · 💰 Залог: ${Number(p.deposit || 0).toLocaleString()} ₽</p>
-            <div style="display:flex;gap:8px;margin-top:10px">
-                ${st.status !== 'paid' ? `<button class="pay-btn" onclick="markPaid(${idx})">✅ Оплачено</button>` : ''}
-                <button class="delete-btn" onclick="deleteProperty(${idx})">Удалить</button>
+            ${leaseText ? `<p style="font-size:12px;margin-top:4px">${leaseText}</p>` : ''}
+            <div class="btn-row">
+                ${st.status !== 'paid' ? `<button class="btn-small btn-pay" onclick="markPaid(${idx})">✅ Оплачено</button>` : ''}
+                <button class="btn-small btn-requisites" onclick="sendRequisites(${idx})">💳 Реквизиты</button>
+                <button class="btn-small btn-contract" onclick="generateContract(${idx})">📄 Договор</button>
+                <button class="btn-small btn-delete" onclick="deleteProperty(${idx})">🗑 Удалить</button>
             </div>
         </div>
     `}).join('');
+}
+
+function renderProfile() {
+    const trialStart = new Date(subData.trial_start || new Date());
+    const trialEnd = new Date(trialStart);
+    trialEnd.setDate(trialEnd.getDate() + 7);
+    const daysLeft = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
+    const statusEl = document.getElementById('profile-status');
+    if (daysLeft > 0) {
+        statusEl.textContent = `🎁 Пробный период: ${daysLeft} дн.`;
+        statusEl.style.background = 'rgba(46,213,115,0.3)';
+    } else {
+        statusEl.textContent = '💎 Подписка неактивна';
+        statusEl.style.background = 'rgba(255,71,87,0.3)';
+    }
 }
 
 async function markPaid(idx) {
@@ -190,11 +227,59 @@ async function markPaid(idx) {
     await saveData(appData);
     renderProperties();
     tg.HapticFeedback?.notificationOccurred('success');
-    tg.showAlert('Отмечено как оплачено!');
+    tg.showAlert('✅ Отмечено как оплачено');
+}
+
+function sendRequisites(idx) {
+    const p = appData.properties[idx];
+    const text = `💳 Реквизиты для оплаты аренды\n\nОбъект: ${p.name}\nАдрес: ${p.address || '—'}\nСумма: ${Number(p.rent_amount || 0).toLocaleString()} ₽/мес\nДень оплаты: ${p.payment_day || 1} числа\n\nПожалуйста, переведите сумму вовремя. Спасибо!`;
+    tg.showAlert(text);
+}
+
+async function generateContract(idx) {
+    const p = appData.properties[idx];
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('ДОГОВОР АРЕНДЫ ЖИЛОГО ПОМЕЩЕНИЯ', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(12);
+    const text = `
+1. ПРЕДМЕТ ДОГОВОРА
+Арендодатель предоставляет, а Арендатор принимает во временное пользование квартиру:
+${p.address || '_________________________________'}
+
+2. СРОК ДЕЙСТВИЯ
+Договор заключен с "___"________ 20__ г. по "___"________ 20__ г.
+${p.lease_end ? '(Предполагаемый срок: ' + new Date(p.lease_end).toLocaleDateString('ru-RU') + ')' : ''}
+
+3. АРЕНДНАЯ ПЛАТА
+Ежемесячная арендная плата составляет: ${Number(p.rent_amount || 0).toLocaleString()} ₽
+Оплата производится: ${p.payment_day || 1} числа каждого месяца
+Залог: ${Number(p.deposit || 0).toLocaleString()} ₽
+
+4. СТОРОНЫ
+Арендатор: ${p.tenant_name || '_________________________________'}
+Телефон: ${p.tenant_phone || '_________________________________'}
+
+5. ПОДПИСИ СТОРОН
+_______________________ / _______________________        _________________________ / _______________________
+      (Арендодатель)                                               (Арендатор)
+
+Дата составления: ${new Date().toLocaleDateString('ru-RU')}
+    `;
+    
+    const lines = doc.splitTextToSize(text, 180);
+    doc.text(lines, 15, 35);
+    
+    const filename = `dogovor_${(p.name || 'object').replace(/\s+/g, '_')}.pdf`;
+    doc.save(filename);
+    tg.HapticFeedback?.notificationOccurred('success');
 }
 
 async function deleteProperty(idx) {
-    if (!confirm('Удалить объект?')) return;
+    if (!confirm('Удалить объект «' + (appData.properties[idx].name || '') + '»?')) return;
     appData.properties.splice(idx, 1);
     await saveData(appData);
     renderProperties();
@@ -219,6 +304,7 @@ document.getElementById('add-form').addEventListener('submit', async (e) => {
         address: data.address || '',
         rent_amount: parseFloat(data.rent_amount) || 0,
         payment_day: parseInt(data.payment_day) || 1,
+        lease_end: data.lease_end || null,
         tenant_name: data.tenant_name || '',
         tenant_phone: data.tenant_phone || '',
         tenant_tg: data.tenant_tg || '',
@@ -227,10 +313,10 @@ document.getElementById('add-form').addEventListener('submit', async (e) => {
     };
     appData.properties.push(prop);
     await saveData(appData);
-    tg.showAlert('Объект добавлен!');
+    tg.showAlert('🏠 Объект добавлен!');
     tg.HapticFeedback?.notificationOccurred('success');
     form.reset();
-    showPage('dashboard');
+    showPage('properties');
 });
 
 async function init() {

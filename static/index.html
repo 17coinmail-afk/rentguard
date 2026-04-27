@@ -2,75 +2,149 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>RentGuard</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div id="app">
+        <!-- Header -->
         <div class="header">
-            <h1>🏠 RentGuard</h1>
-            <p id="user-name">Загрузка...</p>
+            <div class="header-content">
+                <h1>🏠 RentGuard</h1>
+                <p id="user-name">Загрузка...</p>
+            </div>
+            <div id="subscription-chip" class="chip">🎁 7 дней бесплатно</div>
         </div>
 
-        <div id="subscription-banner" class="sub-banner">
-            🎁 Пробный период: 7 дней
-        </div>
-
-        <div class="nav">
-            <button onclick="showPage('dashboard')" class="nav-btn active">Главная</button>
-            <button onclick="showPage('properties')" class="nav-btn">Объекты</button>
-            <button onclick="showPage('add')" class="nav-btn">+</button>
-        </div>
-
+        <!-- Pages -->
         <div id="page-dashboard" class="page">
             <div class="stats-grid">
-                <div class="stat-card">
+                <div class="stat-card primary">
+                    <span class="stat-icon">🏠</span>
                     <span class="stat-value" id="dash-count">0</span>
                     <span class="stat-label">Объектов</span>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card success">
+                    <span class="stat-icon">💰</span>
                     <span class="stat-value" id="dash-income">0 ₽</span>
                     <span class="stat-label">Доход/мес</span>
                 </div>
-                <div class="stat-card">
-                    <span class="stat-value" id="dash-paid" style="color:#2ed573">0</span>
+                <div class="stat-card paid">
+                    <span class="stat-icon">✅</span>
+                    <span class="stat-value" id="dash-paid">0</span>
                     <span class="stat-label">Оплачено</span>
                 </div>
-                <div class="stat-card">
-                    <span class="stat-value" id="dash-overdue" style="color:#ff4757">0</span>
+                <div class="stat-card danger">
+                    <span class="stat-icon">⚠️</span>
+                    <span class="stat-value" id="dash-overdue">0</span>
                     <span class="stat-label">Просрочено</span>
                 </div>
             </div>
-            <div id="upcoming-payments" class="section">
-                <h3>📅 Ближайшие платежи</h3>
+
+            <div class="section">
+                <div class="section-header">
+                    <h3>📅 Ближайшие платежи</h3>
+                </div>
                 <div id="payments-list" class="list"></div>
             </div>
-            <button onclick="showPage('add')" class="btn-primary btn-full">➕ Добавить объект</button>
         </div>
 
         <div id="page-properties" class="page hidden">
-            <div id="properties-list" class="list">
-                <p>Загрузка...</p>
+            <div class="section-header" style="padding:0 12px 12px">
+                <h3>Мои объекты</h3>
+            </div>
+            <div id="properties-list" class="list"></div>
+        </div>
+
+        <div id="page-profile" class="page hidden">
+            <div class="profile-card">
+                <div class="profile-avatar" id="profile-avatar">👤</div>
+                <h2 id="profile-name">Пользователь</h2>
+                <p id="profile-status" class="status-badge">🎁 Пробный период</p>
+            </div>
+            <div class="menu-list">
+                <div class="menu-item" onclick="showSubscribe()">
+                    <span class="menu-icon">💎</span>
+                    <span class="menu-label">Подписка</span>
+                    <span class="menu-arrow">›</span>
+                </div>
+                <div class="menu-item" onclick="showPage('add')">
+                    <span class="menu-icon">➕</span>
+                    <span class="menu-label">Добавить объект</span>
+                    <span class="menu-arrow">›</span>
+                </div>
             </div>
         </div>
 
         <div id="page-add" class="page hidden">
+            <div class="form-header">
+                <button class="back-btn" onclick="showPage('properties')">‹ Назад</button>
+                <h2>Новый объект</h2>
+            </div>
             <form id="add-form" class="form">
-                <h2>Добавить объект</h2>
-                <input type="text" name="name" placeholder="Название (например, 2-к квартира)" required>
-                <input type="text" name="address" placeholder="Адрес">
-                <input type="number" name="rent_amount" placeholder="Сумма аренды (₽)" required>
-                <input type="number" name="payment_day" placeholder="День оплаты (1-31)" min="1" max="31" value="1" required>
-                <input type="text" name="tenant_name" placeholder="ФИО арендатора">
-                <input type="text" name="tenant_phone" placeholder="Телефон арендатора">
-                <input type="text" name="tenant_tg" placeholder="Telegram арендатора (@username)">
-                <input type="number" name="deposit" placeholder="Залог (₽)" value="0">
-                <button type="submit" class="btn-primary">Сохранить</button>
+                <div class="form-group">
+                    <label>Название</label>
+                    <input type="text" name="name" placeholder="Например, 2-к квартира на Ленина" required>
+                </div>
+                <div class="form-group">
+                    <label>Адрес</label>
+                    <input type="text" name="address" placeholder="г. Москва, ул. Ленина, 10">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Сумма аренды, ₽</label>
+                        <input type="number" name="rent_amount" placeholder="50000" required>
+                    </div>
+                    <div class="form-group">
+                        <label>День оплаты</label>
+                        <input type="number" name="payment_day" min="1" max="31" value="1" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Договор до</label>
+                    <input type="date" name="lease_end" placeholder="2026-12-31">
+                </div>
+                <div class="form-group">
+                    <label>ФИО арендатора</label>
+                    <input type="text" name="tenant_name" placeholder="Иванов Иван Иванович">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Телефон</label>
+                        <input type="tel" name="tenant_phone" placeholder="+7 999 000-00-00">
+                    </div>
+                    <div class="form-group">
+                        <label>Telegram</label>
+                        <input type="text" name="tenant_tg" placeholder="@username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Залог, ₽</label>
+                    <input type="number" name="deposit" placeholder="50000" value="0">
+                </div>
+                <button type="submit" class="btn-primary btn-full">Сохранить объект</button>
             </form>
         </div>
     </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <button class="bottom-nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+            <span class="bottom-nav-icon">🏠</span>
+            <span class="bottom-nav-label">Главная</span>
+        </button>
+        <button class="bottom-nav-item" data-page="properties" onclick="showPage('properties')">
+            <span class="bottom-nav-icon">📋</span>
+            <span class="bottom-nav-label">Объекты</span>
+        </button>
+        <button class="bottom-nav-item" data-page="profile" onclick="showPage('profile')">
+            <span class="bottom-nav-icon">👤</span>
+            <span class="bottom-nav-label">Профиль</span>
+        </button>
+    </nav>
 
     <script src="/static/app.js"></script>
 </body>
