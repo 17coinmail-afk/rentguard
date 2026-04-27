@@ -23,11 +23,15 @@ async def cmd_start(message: Message):
             session.add(user)
             await session.commit()
     
+    from bot.config import TRIAL_DAYS
     text = (
         f"👋 Привет, {message.from_user.full_name}!\n\n"
         "🏠 <b>RentGuard</b> — умный помощник для арендодателей.\n\n"
-        "🚀 Нажми <b>«Открыть приложение»</b> для удобного управления через Mini App!\n\n"
-        "Или используй кнопки ниже для работы в боте."
+        "✅ Автонапоминания об оплате\n"
+        "✅ Контроль просрочек\n"
+        "✅ Учёт объектов и арендаторов\n\n"
+        f"🎁 <b>{TRIAL_DAYS} дней бесплатно</b>\n"
+        "🚀 Нажми <b>«Открыть приложение»</b> и добавь первый объект!"
     )
     await message.answer(text, reply_markup=main_menu_kb())
 

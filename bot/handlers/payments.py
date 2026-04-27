@@ -13,11 +13,28 @@ router = Router()
 
 @router.callback_query(F.data == "subscription")
 async def subscription_info(callback: CallbackQuery):
+    from bot.config import TRIAL_DAYS
     async with async_session() as session:
         result = await session.execute(select(User).where(User.tg_id == callback.from_user.id))
         user = result.scalar_one_or_none()
-        status = "💎 Активна" if user and user.subscription_end and user.subscription_end > datetime.datetime.utcnow() else "❌ Неактивна"
-        end_date = user.subscription_end.strftime("%d.%m.%Y") if user and user.subscription_end else "—"
+        now = datetime.datetime.utcnow()
+        
+        if user and user.subscription_end and user.subscription_end > now:
+            days_left = (user.subscription_end - now).days
+            status = f"💎 Активна ({days_left} дн.)"
+            end_date = user.subscription_end.strftime("%d.%m.%Y")
+        elif user and user.created_at:
+            trial_end = user.created_at + datetime.timedelta(days=TRIAL_DAYS)
+            if trial_end > now:
+                days_left = (trial_end - now).days
+                status = f"🎁 Пробный период ({days_left} дн.)"
+                end_date = trial_end.strftime("%d.%m.%Y")
+            else:
+                status = "❌ Неактивна"
+                end_date = "—"
+        else:
+            status = "🎁 Пробный период (7 дн.)"
+            end_date = "—"
     
     text = (
         f"💎 <b>Подписка RentGuard</b>\n\n"
@@ -26,9 +43,9 @@ async def subscription_info(callback: CallbackQuery):
         f"Стоимость: <b>{PRICE_PER_PROPERTY} ₽/мес</b> за объект\n\n"
         "С подпиской доступно:\n"
         "• Неограниченное количество объектов\n"
-        "• Автонапоминания арендаторам\n"
+        "• Автонапоминания об оплате\n"
+        "• Контроль просрочек\n"
         "• Фотоучёт\n"
-        "• Экспорт отчётов\n"
         "• Приоритетная поддержка"
     )
     await callback.message.edit_text(text, reply_markup=subscription_kb())

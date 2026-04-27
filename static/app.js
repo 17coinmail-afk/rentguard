@@ -3,6 +3,7 @@ tg.expand();
 tg.ready();
 
 const CLOUD_KEY = 'rg_properties_v1';
+const CLOUD_SUB_KEY = 'rg_subscription_v1';
 
 function cloudSet(key, value) {
     return new Promise((resolve, reject) => {
@@ -40,7 +41,14 @@ async function saveData(data) {
     await cloudSet(CLOUD_KEY, JSON.stringify(data));
 }
 
+async function loadSub() {
+    const raw = await cloudGet(CLOUD_SUB_KEY);
+    if (!raw) return { trial_start: new Date().toISOString(), active: true };
+    try { return JSON.parse(raw); } catch (e) { return { trial_start: new Date().toISOString(), active: true }; }
+}
+
 let appData = { properties: [] };
+let subData = { trial_start: new Date().toISOString(), active: true };
 
 function showPage(name) {
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
@@ -65,11 +73,46 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function getPaymentStatus(prop) {
+    const today = new Date();
+    const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    const paymentDay = parseInt(prop.payment_day) || 1;
+    const currentDay = today.getDate();
+    
+    if (prop.last_paid_month === currentMonth) {
+        return { status: 'paid', label: '✅ Оплачено', color: '#2ed573' };
+    }
+    if (currentDay > paymentDay) {
+        return { status: 'overdue', label: '⚠️ Просрочено', color: '#ff4757' };
+    }
+    return { status: 'pending', label: '⏳ Ожидается', color: '#ffa502' };
+}
+
 function renderDashboard() {
     const props = appData.properties || [];
     const totalIncome = props.reduce((sum, p) => sum + (Number(p.rent_amount) || 0), 0);
+    const paidCount = props.filter(p => getPaymentStatus(p).status === 'paid').length;
+    const overdueCount = props.filter(p => getPaymentStatus(p).status === 'overdue').length;
+    
     document.getElementById('dash-count').textContent = props.length;
     document.getElementById('dash-income').textContent = totalIncome.toLocaleString() + ' ₽';
+    document.getElementById('dash-paid').textContent = paidCount;
+    document.getElementById('dash-overdue').textContent = overdueCount;
+
+    // Trial timer
+    const trialStart = new Date(subData.trial_start || new Date());
+    const trialDays = 7;
+    const trialEnd = new Date(trialStart);
+    trialEnd.setDate(trialEnd.getDate() + trialDays);
+    const daysLeft = Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24));
+    const subEl = document.getElementById('subscription-banner');
+    if (daysLeft > 0) {
+        subEl.innerHTML = `🎁 Пробный период: <b>${daysLeft} дн.</b> осталось`;
+        subEl.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+    } else {
+        subEl.innerHTML = `💎 Подписка закончилась. <a href="#" onclick="showSubscribe()" style="color:#fff;text-decoration:underline;">Продлить за 500₽/мес</a>`;
+        subEl.style.background = '#ff4757';
+    }
 
     const today = new Date();
     const currentDay = today.getDate();
@@ -95,6 +138,7 @@ function renderDashboard() {
         return;
     }
     list.innerHTML = upcoming.map(p => {
+        const st = getPaymentStatus(p);
         const dateStr = p.paymentDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
         const daysText = p.daysLeft === 0 ? 'Сегодня!' : p.daysLeft === 1 ? 'Завтра' : `Через ${p.daysLeft} дн.`;
         return `
@@ -103,7 +147,10 @@ function renderDashboard() {
                     <div class="payment-name">${escapeHtml(p.name)}</div>
                     <div class="payment-date">${dateStr} · ${daysText}</div>
                 </div>
-                <div class="payment-amount">${Number(p.rent_amount || 0).toLocaleString()} ₽</div>
+                <div style="text-align:right">
+                    <div class="payment-amount">${Number(p.rent_amount || 0).toLocaleString()} ₽</div>
+                    <div style="font-size:11px;color:${st.color};font-weight:700">${st.label}</div>
+                </div>
             </div>
         `;
     }).join('');
@@ -116,16 +163,34 @@ function renderProperties() {
         list.innerHTML = '<div class="empty-state">Нет объектов. Добавь первый!</div>';
         return;
     }
-    list.innerHTML = props.map((p, idx) => `
+    list.innerHTML = props.map((p, idx) => {
+        const st = getPaymentStatus(p);
+        return `
         <div class="card">
-            <h3>${escapeHtml(p.name)}</h3>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <h3>${escapeHtml(p.name)}</h3>
+                <span style="font-size:12px;color:${st.color};font-weight:700;background:${st.color}15;padding:4px 8px;border-radius:6px">${st.label}</span>
+            </div>
             <p>${escapeHtml(p.address || 'Адрес не указан')}</p>
             <p class="price">${Number(p.rent_amount || 0).toLocaleString()} ₽/мес</p>
             <p>👤 ${escapeHtml(p.tenant_name || '—')} · 📞 ${escapeHtml(p.tenant_phone || '—')}</p>
             <p>📅 Оплата: ${p.payment_day || 1} числа · 💰 Залог: ${Number(p.deposit || 0).toLocaleString()} ₽</p>
-            <button class="delete-btn" onclick="deleteProperty(${idx})">Удалить</button>
+            <div style="display:flex;gap:8px;margin-top:10px">
+                ${st.status !== 'paid' ? `<button class="pay-btn" onclick="markPaid(${idx})">✅ Оплачено</button>` : ''}
+                <button class="delete-btn" onclick="deleteProperty(${idx})">Удалить</button>
+            </div>
         </div>
-    `).join('');
+    `}).join('');
+}
+
+async function markPaid(idx) {
+    const today = new Date();
+    const currentMonth = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    appData.properties[idx].last_paid_month = currentMonth;
+    await saveData(appData);
+    renderProperties();
+    tg.HapticFeedback?.notificationOccurred('success');
+    tg.showAlert('Отмечено как оплачено!');
 }
 
 async function deleteProperty(idx) {
@@ -134,6 +199,15 @@ async function deleteProperty(idx) {
     await saveData(appData);
     renderProperties();
     tg.HapticFeedback?.impactOccurred('light');
+}
+
+function showSubscribe() {
+    tg.showAlert(
+        '💎 Подписка RentGuard\n\n' +
+        '500₽ / месяц за объект\n' +
+        'Первые 7 дней бесплатно\n\n' +
+        'Для оплаты напишите @airroyalty_bot'
+    );
 }
 
 document.getElementById('add-form').addEventListener('submit', async (e) => {
@@ -149,6 +223,7 @@ document.getElementById('add-form').addEventListener('submit', async (e) => {
         tenant_phone: data.tenant_phone || '',
         tenant_tg: data.tenant_tg || '',
         deposit: parseFloat(data.deposit) || 0,
+        last_paid_month: null,
     };
     appData.properties.push(prop);
     await saveData(appData);
@@ -161,6 +236,7 @@ document.getElementById('add-form').addEventListener('submit', async (e) => {
 async function init() {
     loadUser();
     appData = await loadData();
+    subData = await loadSub();
     renderDashboard();
 }
 

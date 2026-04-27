@@ -13,6 +13,17 @@ body {
 }
 .header h1 { font-size: 26px; margin-bottom: 6px; }
 .header p { opacity: 0.9; font-size: 14px; }
+.sub-banner {
+    color: white;
+    padding: 12px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 12px;
+    border-radius: 0 0 12px 12px;
+    position: relative;
+    top: -1px;
+}
 .nav {
     display: flex;
     gap: 8px;
@@ -127,6 +138,16 @@ body {
     box-shadow: 0 4px 12px rgba(102,126,234,0.3);
 }
 .btn-full { width: 100%; }
+.pay-btn {
+    background: #2ed573;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
 .delete-btn {
     background: #ff4757;
     color: white;
@@ -134,7 +155,7 @@ body {
     padding: 8px 14px;
     border-radius: 8px;
     font-size: 12px;
-    margin-top: 10px;
+    margin-top: 0;
     cursor: pointer;
     font-weight: 600;
 }
