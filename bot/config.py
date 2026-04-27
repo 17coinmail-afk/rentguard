@@ -16,4 +16,4 @@ WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else ""
 TRIAL_DAYS = 7
 SUBSCRIPTION_DAYS = 30
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///data/rentguard.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///rentguard.db")

@@ -11,9 +11,49 @@ from sqlalchemy import select, func
 
 logging.basicConfig(level=logging.INFO)
 
-# Import bot modules
-from bot.config import BOT_TOKEN, WEBHOOK_URL, ADMIN_ID, PRICE_PER_PROPERTY, TRIAL_DAYS, SUBSCRIPTION_DAYS
-from bot.database import init_db, async_session, User, Property, Payment
+# Lazy imports for bot modules to avoid startup crashes
+_bot_modules_loaded = False
+_bot = None
+
+async def _load_bot_modules(app):
+    global _bot_modules_loaded, _bot
+    if _bot_modules_loaded:
+        return
+    try:
+        from bot.config import BOT_TOKEN, WEBHOOK_URL
+        from bot.database import init_db
+        
+        await init_db()
+        logging.info("Database initialized")
+        
+        from aiogram import Bot, Dispatcher
+        from bot.handlers import start, landlord, payments, admin
+        
+        bot = Bot(token=BOT_TOKEN)
+        dp = Dispatcher()
+        dp.include_router(start.router)
+        dp.include_router(landlord.router)
+        dp.include_router(payments.router)
+        dp.include_router(admin.router)
+        logging.info("Bot handlers registered")
+        
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+        webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+        webhook_handler.register(app, path="/webhook")
+        setup_application(app, dp, bot=bot)
+        logging.info("Webhook handler registered")
+        
+        _bot = bot
+        _bot_modules_loaded = True
+        logging.info("Bot modules loaded successfully")
+        
+        if WEBHOOK_URL:
+            await bot.set_webhook(WEBHOOK_URL)
+            logging.info(f"Webhook set to {WEBHOOK_URL}")
+    except Exception as e:
+        logging.error(f"Bot init error: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ------------------ Telegram WebApp Auth ------------------
 
@@ -29,19 +69,16 @@ def validate_telegram_init_data(init_data: str) -> dict:
     if not received_hash:
         raise ValueError("No hash in init data")
     
-    # Build data_check_string
     data_check_string = "\n".join(
         f"{k}={v}" for k, v in sorted(params.items())
     )
     
-    # Secret key = HMAC_SHA256(BOT_TOKEN, "WebAppData")
     secret_key = hmac.new(
         "WebAppData".encode(),
-        BOT_TOKEN.encode(),
+        os.getenv("BOT_TOKEN", "").encode(),
         hashlib.sha256
     ).digest()
     
-    # Check hash
     computed_hash = hmac.new(
         secret_key,
         data_check_string.encode(),
@@ -51,7 +88,6 @@ def validate_telegram_init_data(init_data: str) -> dict:
     if computed_hash != received_hash:
         raise ValueError("Invalid hash")
     
-    # Parse user JSON
     user_json = params.get("user", "{}")
     user = json.loads(user_json)
     return user
@@ -64,7 +100,15 @@ async def get_current_user(request) -> dict:
         logging.warning(f"Auth failed: {e}")
         raise web.HTTPUnauthorized(text="Unauthorized")
 
-async def get_or_create_user(session, tg_user: dict) -> User:
+# ------------------ DB helpers ------------------
+
+async def get_session():
+    from bot.database import async_session
+    return async_session()
+
+async def get_or_create_user(session, tg_user: dict):
+    from bot.database import User
+    from bot.config import TRIAL_DAYS
     tg_id = tg_user.get("id")
     result = await session.execute(select(User).where(User.tg_id == tg_id))
     user = result.scalar_one_or_none()
@@ -89,8 +133,9 @@ async def health(request):
 
 async def api_me(request):
     tg_user = await get_current_user(request)
-    async with async_session() as session:
+    async with await get_session() as session:
         user = await get_or_create_user(session, tg_user)
+        from bot.config import TRIAL_DAYS, PRICE_PER_PROPERTY
         return web.json_response({
             "id": user.id,
             "tg_id": user.tg_id,
@@ -104,8 +149,9 @@ async def api_me(request):
 
 async def api_properties(request):
     tg_user = await get_current_user(request)
-    async with async_session() as session:
+    async with await get_session() as session:
         user = await get_or_create_user(session, tg_user)
+        from bot.database import Property
         result = await session.execute(
             select(Property).where(Property.owner_id == user.id)
         )
@@ -129,8 +175,9 @@ async def api_add_property(request):
     tg_user = await get_current_user(request)
     data = await request.json()
     
-    async with async_session() as session:
+    async with await get_session() as session:
         user = await get_or_create_user(session, tg_user)
+        from bot.database import Property
         prop = Property(
             owner_id=user.id,
             name=data.get("name", ""),
@@ -151,8 +198,9 @@ async def api_delete_property(request):
     tg_user = await get_current_user(request)
     prop_id = int(request.match_info["id"])
     
-    async with async_session() as session:
+    async with await get_session() as session:
         user = await get_or_create_user(session, tg_user)
+        from bot.database import Property
         result = await session.execute(
             select(Property).where(Property.id == prop_id, Property.owner_id == user.id)
         )
@@ -166,8 +214,9 @@ async def api_delete_property(request):
 
 async def api_stats(request):
     tg_user = await get_current_user(request)
-    async with async_session() as session:
+    async with await get_session() as session:
         user = await get_or_create_user(session, tg_user)
+        from bot.database import Property
         
         result = await session.execute(
             select(func.count(Property.id)).where(Property.owner_id == user.id)
@@ -202,43 +251,17 @@ async def main():
     app.router.add_delete("/api/properties/{id}", api_delete_property)
     app.router.add_get("/api/stats", api_stats)
     
-    try:
-        from bot.database import init_db
-        await init_db()
-        logging.info("Database initialized")
-        
-        from aiogram import Bot, Dispatcher
-        from bot.handlers import start, landlord, payments, admin
-        
-        bot = Bot(token=BOT_TOKEN)
-        dp = Dispatcher()
-        dp.include_router(start.router)
-        dp.include_router(landlord.router)
-        dp.include_router(payments.router)
-        dp.include_router(admin.router)
-        logging.info("Bot handlers registered")
-        
-        from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-        webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-        webhook_handler.register(app, path="/webhook")
-        setup_application(app, dp, bot=bot)
-        logging.info("Webhook handler registered")
-        
-        if WEBHOOK_URL:
-            await bot.set_webhook(WEBHOOK_URL)
-            logging.info(f"Webhook set to {WEBHOOK_URL}")
-    
-    except Exception as e:
-        logging.error(f"Bot init error: {e}")
-        import traceback
-        traceback.print_exc()
-    
+    # Start server FIRST (so Render healthcheck passes immediately)
     port = int(os.getenv("PORT", 8080))
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, host="0.0.0.0", port=port)
     await site.start()
     logging.info(f"Server started on port {port}")
+    
+    # Initialize bot in background
+    await _load_bot_modules(app)
+    
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
