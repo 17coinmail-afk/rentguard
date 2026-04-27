@@ -1,56 +1,48 @@
+import asyncio
+import logging
 import os
-import json
-import aiohttp
 from aiohttp import web
+from aiogram import Bot, Dispatcher, types
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-TOKEN = os.getenv("BOT_TOKEN", "")
+API_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-WEBHOOK_URL = "https://rentguard-v47c.onrender.com/webhook"
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+
+@dp.message()
+async def echo(message: types.Message):
+    if message.text == "/start":
+        await message.answer(f"Привет, {message.from_user.full_name}! Aiogram + webhook работает.")
+    elif message.text == "/admin":
+        if message.from_user.id == ADMIN_ID:
+            await message.answer("✅ Админ-панель")
+        else:
+            await message.answer("❌ Нет доступа")
+    else:
+        await message.answer(f"Ты написал: {message.text}")
 
 async def health(request):
     return web.Response(text="OK")
 
-async def webhook_handler(request):
-    data = await request.json()
-    if "message" in data:
-        chat_id = data["message"]["chat"]["id"]
-        text = data["message"].get("text", "")
-        user = data["message"]["from"]
-        
-        if text == "/start":
-            reply = f"👋 Привет, {user.get('first_name', '')}! Бот работает."
-        elif text == "/admin":
-            if user.get("id") == ADMIN_ID:
-                reply = "✅ Админ-панель доступна."
-            else:
-                reply = "❌ Нет доступа."
-        else:
-            reply = f"Ты написал: {text}"
-        
-        await send_message(chat_id, reply)
-    return web.Response(text="OK")
+async def main():
+    app = web.Application()
+    app.router.add_get("/", health)
+    
+    webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    webhook_requests_handler.register(app, path="/webhook")
+    setup_application(app, dp, bot=bot)
+    
+    port = int(os.getenv("PORT", 8080))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    logging.info(f"Server started on port {port}")
+    await asyncio.Event().wait()
 
-async def send_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    async with aiohttp.ClientSession() as session:
-        await session.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
-
-async def set_webhook():
-    url = f"https://api.telegram.org/bot{TOKEN}/setWebhook"
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json={"url": WEBHOOK_URL}) as resp:
-            result = await resp.text()
-            print("Webhook set:", result)
-
-app = web.Application()
-app.router.add_get("/", health)
-app.router.add_post("/webhook", webhook_handler)
-
-# Set webhook on startup
-async def on_startup(app):
-    await set_webhook()
-
-app.on_startup.append(on_startup)
-
-port = int(os.getenv("PORT", 8080))
-web.run_app(app, host="0.0.0.0", port=port)
+if __name__ == '__main__':
+    asyncio.run(main())
