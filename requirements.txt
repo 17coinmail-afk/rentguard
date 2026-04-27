@@ -1,6 +1,6 @@
 aiogram
-python-dotenv
+aiohttp
 SQLAlchemy
 aiosqlite
-aiohttp
+python-dotenv
 Jinja2

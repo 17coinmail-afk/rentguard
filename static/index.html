@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RentGuard</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>🏠 RentGuard</h1>
+            <p id="user-name">Загрузка...</p>
+        </div>
+
+        <div class="nav">
+            <button onclick="showPage('properties')" class="nav-btn active">Объекты</button>
+            <button onclick="showPage('add')" class="nav-btn">+ Добавить</button>
+            <button onclick="showPage('stats')" class="nav-btn">Статистика</button>
+        </div>
+
+        <div id="page-properties" class="page">
+            <div id="properties-list" class="list">
+                <p>Загрузка...</p>
+            </div>
+        </div>
+
+        <div id="page-add" class="page hidden">
+            <form id="add-form" class="form">
+                <h2>Добавить объект</h2>
+                <input type="text" name="name" placeholder="Название (например, 2-к квартира)" required>
+                <input type="text" name="address" placeholder="Адрес">
+                <input type="number" name="rent_amount" placeholder="Сумма аренды (₽)" required>
+                <input type="number" name="payment_day" placeholder="День оплаты (1-31)" min="1" max="31" value="1" required>
+                <input type="text" name="tenant_name" placeholder="ФИО арендатора">
+                <input type="text" name="tenant_phone" placeholder="Телефон арендатора">
+                <input type="text" name="tenant_tg" placeholder="Telegram арендатора (@username)">
+                <input type="number" name="deposit" placeholder="Залог (₽)" value="0">
+                <button type="submit" class="btn-primary">Сохранить</button>
+            </form>
+        </div>
+
+        <div id="page-stats" class="page hidden">
+            <div class="stats-card">
+                <h3>📊 Статистика</h3>
+                <p>Всего объектов: <strong id="stat-count">0</strong></p>
+                <p>Месячный доход: <strong id="stat-income">0 ₽</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
