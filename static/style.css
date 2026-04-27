@@ -8,16 +8,19 @@ body {
 .header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 20px;
+    padding: 24px 20px;
     text-align: center;
 }
-.header h1 { font-size: 24px; margin-bottom: 5px; }
+.header h1 { font-size: 26px; margin-bottom: 6px; }
 .header p { opacity: 0.9; font-size: 14px; }
 .nav {
     display: flex;
     gap: 8px;
     padding: 12px;
     background: var(--tg-theme-secondary-bg-color, #fff);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 .nav-btn {
     flex: 1;
@@ -29,62 +32,115 @@ body {
     font-weight: 600;
     cursor: pointer;
     font-size: 13px;
+    opacity: 0.7;
 }
-.nav-btn.active { opacity: 0.8; }
+.nav-btn.active { opacity: 1; box-shadow: 0 2px 8px rgba(102,126,234,0.3); }
 .page { padding: 12px; }
 .hidden { display: none; }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .card {
     background: var(--tg-theme-secondary-bg-color, #fff);
-    border-radius: 12px;
-    padding: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    transition: transform 0.1s;
 }
-.card h3 { font-size: 16px; margin-bottom: 5px; }
-.card p { font-size: 13px; opacity: 0.7; margin-bottom: 3px; }
-.card .price { color: #667eea; font-weight: 700; font-size: 18px; }
+.card:active { transform: scale(0.98); }
+.card h3 { font-size: 17px; margin-bottom: 6px; }
+.card p { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
+.card .price { color: #667eea; font-weight: 700; font-size: 20px; margin: 8px 0; }
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.stat-card {
+    background: var(--tg-theme-secondary-bg-color, #fff);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.stat-value {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    color: #667eea;
+    margin-bottom: 4px;
+}
+.stat-label {
+    font-size: 12px;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.section {
+    background: var(--tg-theme-secondary-bg-color, #fff);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.section h3 { font-size: 15px; margin-bottom: 10px; opacity: 0.8; }
+.payment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.payment-row:last-child { border-bottom: none; }
+.payment-name { font-weight: 600; font-size: 14px; }
+.payment-date { font-size: 12px; opacity: 0.6; }
+.payment-amount { font-weight: 700; color: #667eea; font-size: 14px; }
 .form {
     background: var(--tg-theme-secondary-bg-color, #fff);
-    border-radius: 12px;
-    padding: 15px;
+    border-radius: 14px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
+.form h2 { margin-bottom: 8px; font-size: 20px; }
 .form input {
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 14px;
+    padding: 14px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 15px;
     background: var(--tg-theme-bg-color, #fff);
     color: var(--tg-theme-text-color, #000);
+    outline: none;
+    transition: border-color 0.2s;
 }
+.form input:focus { border-color: #667eea; }
 .btn-primary {
-    padding: 14px;
+    padding: 16px;
     border: none;
-    border-radius: 10px;
+    border-radius: 12px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     font-weight: 700;
     font-size: 16px;
     cursor: pointer;
-    margin-top: 10px;
+    margin-top: 8px;
+    box-shadow: 0 4px 12px rgba(102,126,234,0.3);
 }
-.stats-card {
-    background: var(--tg-theme-secondary-bg-color, #fff);
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-}
-.stats-card h3 { margin-bottom: 15px; }
-.stats-card strong { font-size: 24px; color: #667eea; }
+.btn-full { width: 100%; }
 .delete-btn {
-    background: #ff4444;
+    background: #ff4757;
     color: white;
     border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
     font-size: 12px;
-    margin-top: 8px;
+    margin-top: 10px;
     cursor: pointer;
+    font-weight: 600;
+}
+.empty-state {
+    text-align: center;
+    padding: 30px;
+    opacity: 0.5;
+    font-size: 14px;
 }

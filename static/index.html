@@ -15,12 +15,30 @@
         </div>
 
         <div class="nav">
-            <button onclick="showPage('properties')" class="nav-btn active">Объекты</button>
-            <button onclick="showPage('add')" class="nav-btn">+ Добавить</button>
-            <button onclick="showPage('stats')" class="nav-btn">Статистика</button>
+            <button onclick="showPage('dashboard')" class="nav-btn active">Главная</button>
+            <button onclick="showPage('properties')" class="nav-btn">Объекты</button>
+            <button onclick="showPage('add')" class="nav-btn">+</button>
         </div>
 
-        <div id="page-properties" class="page">
+        <div id="page-dashboard" class="page">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-value" id="dash-count">0</span>
+                    <span class="stat-label">Объектов</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="dash-income">0 ₽</span>
+                    <span class="stat-label">Доход/мес</span>
+                </div>
+            </div>
+            <div id="upcoming-payments" class="section">
+                <h3>📅 Ближайшие платежи</h3>
+                <div id="payments-list" class="list"></div>
+            </div>
+            <button onclick="showPage('add')" class="btn-primary btn-full">➕ Добавить объект</button>
+        </div>
+
+        <div id="page-properties" class="page hidden">
             <div id="properties-list" class="list">
                 <p>Загрузка...</p>
             </div>
@@ -39,14 +57,6 @@
                 <input type="number" name="deposit" placeholder="Залог (₽)" value="0">
                 <button type="submit" class="btn-primary">Сохранить</button>
             </form>
-        </div>
-
-        <div id="page-stats" class="page hidden">
-            <div class="stats-card">
-                <h3>📊 Статистика</h3>
-                <p>Всего объектов: <strong id="stat-count">0</strong></p>
-                <p>Месячный доход: <strong id="stat-income">0 ₽</strong></p>
-            </div>
         </div>
     </div>
 

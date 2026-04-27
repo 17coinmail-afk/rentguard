@@ -4,15 +4,10 @@ tg.ready();
 
 const CLOUD_KEY = 'rg_properties_v1';
 
-// CloudStorage promise wrappers
 function cloudSet(key, value) {
     return new Promise((resolve, reject) => {
         if (!tg.CloudStorage) {
-            // Fallback to localStorage for browser testing
-            try {
-                localStorage.setItem(key, value);
-                resolve(true);
-            } catch (e) { reject(e); }
+            try { localStorage.setItem(key, value); resolve(true); } catch (e) { reject(e); }
             return;
         }
         tg.CloudStorage.setItem(key, value, (err, stored) => {
@@ -25,9 +20,7 @@ function cloudSet(key, value) {
 function cloudGet(key) {
     return new Promise((resolve, reject) => {
         if (!tg.CloudStorage) {
-            try {
-                resolve(localStorage.getItem(key) || null);
-            } catch (e) { reject(e); }
+            try { resolve(localStorage.getItem(key) || null); } catch (e) { reject(e); }
             return;
         }
         tg.CloudStorage.getItem(key, (err, value) => {
@@ -37,31 +30,10 @@ function cloudGet(key) {
     });
 }
 
-function cloudRemove(key) {
-    return new Promise((resolve, reject) => {
-        if (!tg.CloudStorage) {
-            try {
-                localStorage.removeItem(key);
-                resolve(true);
-            } catch (e) { reject(e); }
-            return;
-        }
-        tg.CloudStorage.removeItem(key, (err, removed) => {
-            if (err) reject(err);
-            else resolve(removed);
-        });
-    });
-}
-
-// Data helpers
 async function loadData() {
     const raw = await cloudGet(CLOUD_KEY);
     if (!raw) return { properties: [] };
-    try {
-        return JSON.parse(raw);
-    } catch (e) {
-        return { properties: [] };
-    }
+    try { return JSON.parse(raw); } catch (e) { return { properties: [] }; }
 }
 
 async function saveData(data) {
@@ -76,34 +48,14 @@ function showPage(name) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     const btn = document.querySelector(`button[onclick="showPage('${name}')"]`);
     if (btn) btn.classList.add('active');
+    if (name === 'dashboard') renderDashboard();
     if (name === 'properties') renderProperties();
-    if (name === 'stats') renderStats();
 }
 
 function loadUser() {
     const user = tg.initDataUnsafe?.user || {};
     const name = user.first_name ? (user.first_name + ' ' + (user.last_name || '')).trim() : 'Пользователь';
     document.getElementById('user-name').textContent = name;
-}
-
-function renderProperties() {
-    const list = document.getElementById('properties-list');
-    const props = appData.properties || [];
-    if (props.length === 0) {
-        list.innerHTML = '<p>Нет объектов. Добавь первый!</p>';
-        return;
-    }
-    list.innerHTML = props.map((p, idx) => `
-        <div class="card">
-            <h3>${escapeHtml(p.name)}</h3>
-            <p>${escapeHtml(p.address || 'Адрес не указан')}</p>
-            <p class="price">${Number(p.rent_amount || 0).toLocaleString()} ₽/мес</p>
-            <p>Арендатор: ${escapeHtml(p.tenant_name || '—')}</p>
-            <p>Телефон: ${escapeHtml(p.tenant_phone || '—')}</p>
-            <p>Оплата: ${p.payment_day || 1} числа</p>
-            <button class="delete-btn" onclick="deleteProperty(${idx})">Удалить</button>
-        </div>
-    `).join('');
 }
 
 function escapeHtml(text) {
@@ -113,20 +65,75 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function renderDashboard() {
+    const props = appData.properties || [];
+    const totalIncome = props.reduce((sum, p) => sum + (Number(p.rent_amount) || 0), 0);
+    document.getElementById('dash-count').textContent = props.length;
+    document.getElementById('dash-income').textContent = totalIncome.toLocaleString() + ' ₽';
+
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    const upcoming = props
+        .map(p => {
+            const day = parseInt(p.payment_day) || 1;
+            let paymentDate = new Date(currentYear, currentMonth, day);
+            if (day < currentDay) {
+                paymentDate = new Date(currentYear, currentMonth + 1, day);
+            }
+            const daysLeft = Math.ceil((paymentDate - today) / (1000 * 60 * 60 * 24));
+            return { ...p, paymentDate, daysLeft };
+        })
+        .sort((a, b) => a.daysLeft - b.daysLeft)
+        .slice(0, 5);
+
+    const list = document.getElementById('payments-list');
+    if (upcoming.length === 0) {
+        list.innerHTML = '<div class="empty-state">Нет объектов для отображения</div>';
+        return;
+    }
+    list.innerHTML = upcoming.map(p => {
+        const dateStr = p.paymentDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const daysText = p.daysLeft === 0 ? 'Сегодня!' : p.daysLeft === 1 ? 'Завтра' : `Через ${p.daysLeft} дн.`;
+        return `
+            <div class="payment-row">
+                <div>
+                    <div class="payment-name">${escapeHtml(p.name)}</div>
+                    <div class="payment-date">${dateStr} · ${daysText}</div>
+                </div>
+                <div class="payment-amount">${Number(p.rent_amount || 0).toLocaleString()} ₽</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderProperties() {
+    const list = document.getElementById('properties-list');
+    const props = appData.properties || [];
+    if (props.length === 0) {
+        list.innerHTML = '<div class="empty-state">Нет объектов. Добавь первый!</div>';
+        return;
+    }
+    list.innerHTML = props.map((p, idx) => `
+        <div class="card">
+            <h3>${escapeHtml(p.name)}</h3>
+            <p>${escapeHtml(p.address || 'Адрес не указан')}</p>
+            <p class="price">${Number(p.rent_amount || 0).toLocaleString()} ₽/мес</p>
+            <p>👤 ${escapeHtml(p.tenant_name || '—')} · 📞 ${escapeHtml(p.tenant_phone || '—')}</p>
+            <p>📅 Оплата: ${p.payment_day || 1} числа · 💰 Залог: ${Number(p.deposit || 0).toLocaleString()} ₽</p>
+            <button class="delete-btn" onclick="deleteProperty(${idx})">Удалить</button>
+        </div>
+    `).join('');
+}
+
 async function deleteProperty(idx) {
     if (!confirm('Удалить объект?')) return;
     appData.properties.splice(idx, 1);
     await saveData(appData);
     renderProperties();
     tg.HapticFeedback?.impactOccurred('light');
-}
-
-function renderStats() {
-    const props = appData.properties || [];
-    const totalProperties = props.length;
-    const totalIncome = props.reduce((sum, p) => sum + (Number(p.rent_amount) || 0), 0);
-    document.getElementById('stat-count').textContent = totalProperties;
-    document.getElementById('stat-income').textContent = totalIncome.toLocaleString() + ' ₽';
 }
 
 document.getElementById('add-form').addEventListener('submit', async (e) => {
@@ -148,13 +155,13 @@ document.getElementById('add-form').addEventListener('submit', async (e) => {
     tg.showAlert('Объект добавлен!');
     tg.HapticFeedback?.notificationOccurred('success');
     form.reset();
-    showPage('properties');
+    showPage('dashboard');
 });
 
 async function init() {
     loadUser();
     appData = await loadData();
-    renderProperties();
+    renderDashboard();
 }
 
 init();
