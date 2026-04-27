@@ -2,6 +2,5 @@ aiogram
 python-dotenv
 SQLAlchemy
 aiosqlite
-APScheduler
 aiohttp
 Jinja2
