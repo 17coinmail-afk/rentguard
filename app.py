@@ -137,6 +137,22 @@ async def api_stats(request):
         total_monthly_rent = (await session.execute(select(func.sum(Property.rent_amount)).where(Property.owner_id == user.id))).scalar() or 0
         return web.json_response({"total_properties": total_properties, "total_monthly_rent": total_monthly_rent})
 
+async def api_admin_stats(request):
+    tg_user = await get_current_user(request)
+    from bot.config import ADMIN_ID
+    if tg_user.get("id") != ADMIN_ID:
+        raise web.HTTPForbidden(text="Forbidden")
+    async with await get_session() as session:
+        from bot.database import User, Property
+        users_count = (await session.execute(select(func.count()).select_from(User))).scalar() or 0
+        props_count = (await session.execute(select(func.count()).select_from(Property))).scalar() or 0
+        total_rent = (await session.execute(select(func.sum(Property.rent_amount)))).scalar() or 0
+        return web.json_response({
+            "users_count": users_count,
+            "properties_count": props_count,
+            "total_monthly_rent": total_rent
+        })
+
 # ------------------ Main ------------------
 
 async def main():
@@ -152,6 +168,7 @@ async def main():
     app.router.add_post("/api/properties", api_add_property)
     app.router.add_delete("/api/properties/{id}", api_delete_property)
     app.router.add_get("/api/stats", api_stats)
+    app.router.add_get("/api/admin/stats", api_admin_stats)
 
     # Setup bot handlers BEFORE runner.setup()
     bot = None
